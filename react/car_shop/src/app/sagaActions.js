@@ -1,0 +1,7 @@
+const sagaActions = {
+    FETCH_ADVERTISMENT_SAGA: 'FETCH_ADVERTISMENT_SAGA',
+    FETCH_CATEGORIES_SAGA: 'FETCH_CATEGORIES_SAGA',
+
+}
+
+export default sagaActions;

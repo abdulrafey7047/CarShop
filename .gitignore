@@ -1,0 +1,4 @@
+DRF/cars/cars_api/migrations/*
+
+*.env
+DRF/cars/*.env

@@ -1,0 +1,109 @@
+version: "3.2"
+services:
+
+  db:
+    restart: always
+    image: postgres
+    env_file:
+      - ./db.env
+    ports:
+          - '5432:5432'
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - db-net
+  
+  rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    container_name: 'rabbitmq'
+    ports:
+        - 5672:5672
+        - 15672:15672
+    volumes:
+        - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+        - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+        - db-net
+    
+  drf:
+    restart: always
+    container_name: backend_code
+    command: bash -c "python manage.py migrate && gunicorn --bind 0.0.0.0:8000 cars.asgi:application --forwarded-allow-ips="*" -w 4 -k uvicorn.workers.UvicornWorker"
+    env_file:
+      - ./DRF/cars/drf.env
+    build:
+      context: ./DRF/cars
+      dockerfile: Dockerfile
+    # volumes:
+    #   - static_files:/app/api/staticfiles
+    expose:
+      - 8000
+    links:
+      - db:db
+    depends_on:
+      - db
+    networks:
+      - db-net
+
+  nginx:
+    build:
+      context: ./nginx/
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+      # - static_files:/home/app/staticfiles
+    networks:
+      - db-net
+    depends_on:
+      - drf
+  
+  celery:
+    restart: always
+    container_name: celery
+    command: celery -A cars worker -l info
+    env_file:
+      - ./DRF/cars/drf.env
+    build: ./DRF/cars
+    depends_on:
+      - rabbitmq
+      - drf
+    networks:
+      - db-net
+  
+  react:
+    restart: always
+    command : npm start
+    container_name: frontend_code
+    build:
+      context: ./react/car_shop
+      dockerfile: Dockerfile
+    expose:
+      - 3000
+    stdin_open: true
+    depends_on:
+      - drf
+    networks:
+      - db-net
+
+  scraper:
+    restart: always
+    container_name: data_scrapper
+    env_file:
+      - ./scrapy/car_shop/scrapy.env
+    build:
+      context: ./scrapy/car_shop
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - drf
+    networks:
+      - db-net
+
+# volumes:
+#   static_files:
+
+networks:
+  db-net:
+    driver: bridge
